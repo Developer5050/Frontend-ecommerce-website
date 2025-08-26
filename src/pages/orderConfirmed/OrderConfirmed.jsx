@@ -1,26 +1,34 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { FaCheckCircle } from "react-icons/fa";
 import { clearCart } from "../../slices/CartSlice";
+import api from "../../../api/axios";
 
 const OrderConfirmed = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const handleContinueShopping = async () => {
-    localStorage.removeItem("cartItems");
     try {
+      // Clear local storage
+      localStorage.removeItem("cartItems");
+      
+      // Clear Redux state
+      dispatch(clearCart());
+      
+      // Clear cart from database
       const userId = localStorage.getItem("userId");
       if (userId) {
-        await fetch(`http://localhost:8080/api/cart/${userId}`, {
-          method: "DELETE",
-        });
+        await api.delete(`/api/cart/${userId}`);
       }
+      
+      navigate("/");
     } catch (err) {
-      console.error("Failed to clear cart in database", err);
+      console.error("Failed to clear cart:", err);
+      // Even if API call fails, still navigate to home page
+      navigate("/");
     }
-    navigate("/");
   };
 
   return (
@@ -34,12 +42,21 @@ const OrderConfirmed = () => {
         shortly.
       </p>
 
-      <button
-        onClick={handleContinueShopping}
-        className="bg-black text-white px-5 py-2 text-sm sm:text-base rounded-sm font-ubuntu hover:bg-gray-800 transition"
-      >
-        Continue Shopping
-      </button>
+      <div className="flex flex-col sm:flex-row gap-4">
+        <button
+          onClick={handleContinueShopping}
+          className="bg-black text-white px-5 py-2 text-sm sm:text-base rounded-sm font-ubuntu hover:bg-gray-800 transition"
+        >
+          Continue Shopping
+        </button>
+        
+        <button
+          onClick={() => navigate("/orders")}
+          className="border border-black text-black px-5 py-2 text-sm sm:text-base rounded-sm font-ubuntu hover:bg-gray-100 transition"
+        >
+          View Orders
+        </button>
+      </div>
     </div>
   );
 };

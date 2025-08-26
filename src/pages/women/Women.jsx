@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+import React, { useEffect, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux"; // ✅ Missing import
+import { useDispatch, useSelector } from "react-redux";
 import { addWishlist, removeWishlist } from "../../slices/WishListSlice";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
+import api from "../../../api/axios";
 
 const Women = () => {
   const [products, setProducts] = useState([]);
@@ -22,52 +22,49 @@ const Women = () => {
   const subCategories = ["Dress", "Heels", "Watches", "Handbags", "Tops"];
 
   const wishlist = useSelector((state) => state.wishlist.products || []);
-
-  // ✅ Token from localStorage
   const token = localStorage.getItem("accessToken");
 
-  // ✅ Wishlist Toggle
-  const toggleWishlist = async (product) => {
-    if (!token) {
-      alert("Please login to use wishlist feature.");
-      return;
-    }
-
-    const productId = product._id.toString();
-    const isInWishlist = wishlist.some(
-      (item) =>
-        item.productId?.toString() === productId ||
-        item._id?.toString() === productId
-    );
-
-    if (isInWishlist) {
-      dispatch(removeWishlist(productId));
-      try {
-        await axios.delete(
-          `http://localhost:8080/api/wishlist/delete/${productId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      } catch (err) {
-        console.error("Error removing wishlist", err);
+  // ✅ Wishlist Toggle - memoized with useCallback
+  const toggleWishlist = useCallback(
+    async (product) => {
+      if (!token) {
+        alert("Please login to use wishlist feature.");
+        return;
       }
-    } else {
-      dispatch(addWishlist({ productId }));
+
+      const productId = product._id.toString();
+      const isInWishlist = wishlist.some(
+        (item) =>
+          item.productId?.toString() === productId ||
+          item._id?.toString() === productId
+      );
+
       try {
-        await axios.post(
-          "http://localhost:8080/api/wishlist/add",
-          { productId },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
+        if (isInWishlist) {
+          dispatch(removeWishlist(productId));
+          await api.delete(`/api/wishlist/delete/${productId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } else {
+          dispatch(addWishlist({ productId }));
+          await api.post(
+            "/api/wishlist/add",
+            { productId },
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+        }
       } catch (err) {
-        console.error("Error adding wishlist", err);
+        console.error("Wishlist error:", err);
+        alert("Failed to update wishlist. Please try again.");
       }
-    }
-  };
+    },
+    [token, wishlist, dispatch]
+  );
 
   // ✅ Subcategory filter from URL
   useEffect(() => {
@@ -81,14 +78,14 @@ const Women = () => {
   useEffect(() => {
     const fetchWomenProducts = async () => {
       try {
-        const res = await axios.get(
-          "http://localhost:8080/api/products/category/Women"
-        );
+        setLoading(true);
+        const res = await api.get("/api/products/category/Women");
         setProducts(res.data);
-        setLoading(false);
+        setError(null);
       } catch (err) {
-        console.error(err);
-        setError("Failed to fetch Women products");
+        console.error("Failed to fetch products:", err);
+        setError("Failed to fetch Women products. Please try again later.");
+      } finally {
         setLoading(false);
       }
     };
@@ -118,16 +115,17 @@ const Women = () => {
     setDisplayed(paginated);
   }, [products, subCategoryFilter, sortOrder, currentPage]);
 
-  const totalPages = Math.ceil(
-    products.filter((p) =>
-      subCategoryFilter
-        ? p.subCategory?.toLowerCase() === subCategoryFilter.toLowerCase()
-        : true
-    ).length / productsPerPage
+  // Calculate total pages
+  const filteredProducts = products.filter((p) =>
+    subCategoryFilter
+      ? p.subCategory?.toLowerCase() === subCategoryFilter.toLowerCase()
+      : true
   );
 
-  // ✅ Star Rendering
-  const renderStars = (rating) => {
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+
+  // ✅ Star Rendering - memoized with useCallback
+  const renderStars = useCallback((rating) => {
     const stars = [];
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating - fullStars >= 0.5;
@@ -135,18 +133,15 @@ const Women = () => {
     for (let i = 0; i < fullStars; i++) {
       stars.push(
         <span key={i} className="text-yellow-500 text-sm">
-          &#9733;
+          ★
         </span>
       );
     }
 
     if (hasHalfStar) {
       stars.push(
-        <span key="half" className="relative text-sm">
-          <span className="text-yellow-500 absolute left-0 w-1/2 overflow-hidden">
-            &#9733;
-          </span>
-          <span className="text-gray-300">&#9733;</span>
+        <span key="half" className="text-yellow-500 text-sm">
+          ★
         </span>
       );
     }
@@ -154,22 +149,37 @@ const Women = () => {
     while (stars.length < 5) {
       stars.push(
         <span key={`empty-${stars.length}`} className="text-gray-300 text-sm">
-          &#9733;
+          ★
         </span>
       );
     }
 
     return stars;
-  };
+  }, []);
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="text-center mt-10 text-xl font-ubuntu">Loading...</div>
+      <div className="flex justify-center items-center h-64 mt-16">
+        <div className="text-center text-xl font-ubuntu">
+          Loading products...
+        </div>
+      </div>
     );
-  if (error)
+  }
+
+  if (error) {
     return (
-      <div className="text-center mt-10 text-red-500 font-ubuntu">{error}</div>
+      <div className="text-center mt-16 text-red-500 font-ubuntu">
+        <p>{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 bg-black text-white px-4 py-2 rounded"
+        >
+          Try Again
+        </button>
+      </div>
     );
+  }
 
   return (
     <div className="px-2 sm:px-6 lg:px-8 py-8 mt-16 mx-auto max-w-screen-xl">
@@ -182,9 +192,12 @@ const Women = () => {
         {/* Subcategory Filter */}
         <div className="relative w-full sm:w-60">
           <select
-            onChange={(e) => setSubCategoryFilter(e.target.value)}
+            onChange={(e) => {
+              setSubCategoryFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             value={subCategoryFilter}
-            className="w-full appearance-none text-md border border-gray-300 bg-white text-gray-700 py-1 px-4 pr-10 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all duration-200"
+            className="w-full appearance-none text-md border border-gray-300 bg-white text-gray-700 py-2 px-4 pr-10 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all duration-200"
           >
             <option value="">All Subcategories</option>
             {subCategories.map((sub) => (
@@ -211,7 +224,7 @@ const Women = () => {
           <select
             onChange={(e) => setSortOrder(e.target.value)}
             value={sortOrder}
-            className="w-full appearance-none border border-gray-300 bg-white text-gray-700 py-1 px-4 pr-10 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all duration-200"
+            className="w-full appearance-none border border-gray-300 bg-white text-gray-700 py-2 px-4 pr-10 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all duration-200"
           >
             <option value="">Sort By</option>
             <option value="lowToHigh">Price: Low to High</option>
@@ -233,8 +246,10 @@ const Women = () => {
 
       {/* Product Grid */}
       {displayed.length === 0 ? (
-        <div className="text-center text-gray-500 mt-10">
-          No products found.
+        <div className="text-center text-gray-500 mt-10 font-ubuntu">
+          {products.length === 0
+            ? "No products available."
+            : "No products found matching your filters."}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 md:mr-20 md:ml-16 gap-6 justify-items-center">
@@ -248,31 +263,45 @@ const Women = () => {
             return (
               <div
                 key={product._id}
-                className="border rounded-lg shadow p-4 w-full max-w-[260px] relative"
+                className="border rounded-lg shadow p-4 w-full max-w-[260px] relative group cursor-pointer hover:shadow-lg transition"
                 onClick={() => navigate(`/product/${product._id}`)}
               >
-                <img
-                  src={`http://localhost:8080/uploads/${product.image}`}
-                  alt={product.title}
-                  className="w-full h-[200px] object-cover rounded-lg mb-3 transition-transform hover:scale-105"
-                />
+                <div className="relative overflow-hidden rounded-lg mb-3">
+                  <img
+                    src={
+                      product.image?.startsWith("http")
+                        ? product.image
+                        : `${import.meta.env.VITE_API_URL}/uploads/${
+                            product.image
+                          }`
+                    }
+                    alt={product.title}
+                    className="w-full h-[200px] object-cover transition-transform group-hover:scale-105"
+                    onError={(e) => {
+                      e.target.src = "/images/placeholder.png";
+                    }}
+                  />
+                </div>
 
                 {/* Wishlist Heart */}
                 <button
                   onClick={(e) => {
-                    e.stopPropagation(); // ✅ navigation ko rok lega
+                    e.stopPropagation();
                     toggleWishlist(product);
                   }}
-                  className="absolute top-2 right-2 text-xl"
+                  className="absolute top-3 right-3 text-xl bg-white p-1 rounded-full shadow-md hover:scale-110 transition"
+                  aria-label={
+                    isInWishlist ? "Remove from wishlist" : "Add to wishlist"
+                  }
                 >
                   {isInWishlist ? (
                     <FaHeart className="text-red-500" />
                   ) : (
-                    <FaRegHeart className="text-gray-500" />
+                    <FaRegHeart className="text-gray-500 hover:text-red-400" />
                   )}
                 </button>
 
-                <h3 className="text-md font-semibold font-ubuntu">
+                <h3 className="text-md font-semibold font-ubuntu line-clamp-1">
                   {product.title}
                 </h3>
 
@@ -283,7 +312,7 @@ const Women = () => {
                   </span>
                 </div>
 
-                <div className="mt-1 ml-2 text-sm sm:text-lg">
+                <div className="mt-1 text-sm sm:text-lg">
                   {product.discount ? (
                     <>
                       <span className="font-bold mr-2">
@@ -291,6 +320,12 @@ const Women = () => {
                       </span>
                       <span className="line-through text-gray-500 font-bold">
                         ${product.price}
+                      </span>
+                      <span className="text-sm text-green-600 font-medium ml-2">
+                        {Math.round(
+                          (1 - product.discount / product.price) * 100
+                        )}
+                        % off
                       </span>
                     </>
                   ) : (
@@ -304,21 +339,23 @@ const Women = () => {
       )}
 
       {/* Pagination */}
-      <div className="flex justify-center mt-6 gap-2 flex-wrap">
-        {Array.from({ length: totalPages }, (_, idx) => (
-          <button
-            key={idx}
-            onClick={() => setCurrentPage(idx + 1)}
-            className={`px-3 py-1 rounded border ${
-              currentPage === idx + 1
-                ? "bg-black text-white"
-                : "bg-white text-black"
-            }`}
-          >
-            {idx + 1}
-          </button>
-        ))}
-      </div>
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-6 gap-2 flex-wrap">
+          {Array.from({ length: totalPages }, (_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrentPage(idx + 1)}
+              className={`px-3 py-2 rounded border ${
+                currentPage === idx + 1
+                  ? "bg-black text-white"
+                  : "bg-white text-black border-gray-400 hover:bg-gray-100"
+              } transition`}
+            >
+              {idx + 1}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

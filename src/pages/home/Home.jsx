@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import api from "../../../api/axios";
 
 const Home = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [user, setUser] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   // ✅ Load user from localStorage
@@ -21,14 +23,17 @@ const Home = () => {
       const userId = storedUser?.id;
 
       if (activeTab === "orders" && userId) {
+        setLoading(true);
+        setError("");
         try {
-          const res = await axios.get(
-            `http://localhost:8080/api/orders/my-orders/${userId}`
-          );
+          const res = await api.get(`/api/orders/my-orders/${userId}`);
           setOrders(Array.isArray(res.data) ? res.data : []);
         } catch (err) {
           console.error("Error fetching orders:", err);
+          setError("Failed to load orders. Please try again.");
           setOrders([]);
+        } finally {
+          setLoading(false);
         }
       }
     };
@@ -37,21 +42,30 @@ const Home = () => {
   }, [activeTab]);
 
   const handleLogout = () => {
-    const accessToken = localStorage.getItem("accessToken");
-    const refreshToken = localStorage.getItem("refreshToken");
-
+    // Clear user-related data but keep tokens for potential reuse
     localStorage.removeItem("user");
     localStorage.removeItem("userId");
     localStorage.removeItem("role");
 
-    localStorage.setItem("accessToken", accessToken);
-    localStorage.setItem("refreshToken", refreshToken);
-
-    console.log("✅ After logout:");
-    console.log("Access Token:", localStorage.getItem("accessToken"));
-    console.log("Refresh Token:", localStorage.getItem("refreshToken"));
-
     navigate("/login");
+  };
+
+  const formatStatus = (status) => {
+    return status
+      ? status
+          .replaceAll("_", " ")
+          .toLowerCase()
+          .replace(/\b\w/g, (l) => l.toUpperCase())
+      : "N/A";
+  };
+
+  const formatPaymentMethod = (method) => {
+    return method
+      ? method
+          .replaceAll("_", " ")
+          .toLowerCase()
+          .replace(/\b\w/g, (l) => l.toUpperCase())
+      : "N/A";
   };
 
   return (
@@ -120,7 +134,12 @@ const Home = () => {
         {activeTab === "orders" && (
           <div className="bg-white p-4 sm:p-6 border border-gray-500 rounded shadow-lg space-y-4">
             <h2 className="text-xl font-bold font-ubuntu">Your Orders</h2>
-            {orders.length === 0 ? (
+
+            {loading ? (
+              <p className="text-gray-600 font-ubuntu">Loading orders...</p>
+            ) : error ? (
+              <p className="text-red-600 font-ubuntu">{error}</p>
+            ) : orders.length === 0 ? (
               <p className="text-gray-600 font-ubuntu">No orders found.</p>
             ) : (
               <div className="overflow-x-auto">
@@ -137,21 +156,20 @@ const Home = () => {
                   </thead>
                   <tbody>
                     {orders.map((order, index) => (
-                      <React.Fragment key={order._id}>
-                        {order.items.map((item, idx) => (
-                          <tr key={idx}>
+                      <React.Fragment key={order._id || index}>
+                        {order.items?.map((item, idx) => (
+                          <tr key={`${order._id}-${idx}`}>
                             <td className="p-2 border">
                               {idx === 0 ? `Order ${index + 1}` : ""}
                             </td>
                             <td className="p-2 border">
                               {idx === 0
-                                ? order.currentStatus.replaceAll("_", " ")
+                                ? formatStatus(order.currentStatus)
                                 : ""}
                             </td>
                             <td className="p-2 border">
                               {idx === 0
-                                ? order.payment?.method?.replaceAll("_", " ") ||
-                                  "N/A"
+                                ? formatPaymentMethod(order.payment?.method)
                                 : ""}
                             </td>
                             <td className="p-2 border">{item.name}</td>

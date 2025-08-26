@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {
   setCartFromBackend,
@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { MdOutlineEmail } from "react-icons/md";
 import { FaTrash } from "react-icons/fa";
 import Footer from "../../components/footer/Footer";
-import axios from "../../utils/Axios";
+import api from "../../../api/axios";
 
 const Cart = () => {
   const cartItems = useSelector((state) => state.cart.cartItems);
@@ -19,10 +19,12 @@ const Cart = () => {
   const user = JSON.parse(localStorage.getItem("user"));
   const userId = user?.id;
 
-  // Fetch cart from backend
-  const fetchCart = async () => {
+  // Fetch cart from backend - memoized with useCallback
+  const fetchCart = useCallback(async () => {
+    if (!userId) return;
+
     try {
-      const res = await axios.get(`/cart/${userId}`);
+      const res = await api.get(`/api/cart/${userId}`);
       console.log("Cart API response:", res.data);
       if (res.data.success && Array.isArray(res.data.cartItems)) {
         dispatch(setCartFromBackend(res.data.cartItems));
@@ -30,14 +32,14 @@ const Cart = () => {
     } catch (error) {
       console.error("Failed to fetch cart", error);
     }
-  };
+  }, [userId, dispatch]);
 
   // Update quantity of a cart item
   const handleQuantityChange = async (productId, newQuantity) => {
     if (newQuantity < 1) return;
 
     try {
-      await axios.put(`/cart/update/${userId}/${productId}`, {
+      await api.put(`/api/cart/update/${userId}/${productId}`, {
         quantity: newQuantity,
       });
       dispatch(updateQuantity({ productId, quantity: newQuantity }));
@@ -49,24 +51,27 @@ const Cart = () => {
   // Delete cart item by _cartId
   const handleDelete = async (productId) => {
     try {
-      await axios.delete(`/cart/${userId}/item/${productId}`);
+      await api.delete(`/api/cart/${userId}/item/${productId}`);
       dispatch(removeFromCart(productId));
     } catch (error) {
       console.error("Failed to delete item", error);
     }
   };
 
-  // Calculate total price
-  const calculateTotal = () =>
-    cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
+  // Calculate total price - memoized to prevent recalculations
+  const calculateTotal = useCallback(
+    () =>
+      cartItems.reduce((total, item) => total + item.price * item.quantity, 0),
+    [cartItems]
+  );
 
   const handleCheckout = () => {
     navigate("/billing");
   };
 
   useEffect(() => {
-    if (userId) fetchCart();
-  }, [userId]);
+    fetchCart();
+  }, [fetchCart]);
 
   return (
     <>
@@ -76,9 +81,17 @@ const Cart = () => {
         </h2>
 
         {!cartItems || cartItems.length === 0 ? (
-          <p className="text-center text-gray-500 font-ubuntu">
-            Your cart is empty.
-          </p>
+          <div className="text-center">
+            <p className="text-gray-500 font-ubuntu mb-4">
+              Your cart is empty.
+            </p>
+            <button
+              onClick={() => navigate("/products")}
+              className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800 font-ubuntu"
+            >
+              Continue Shopping
+            </button>
+          </div>
         ) : (
           <>
             <div className="overflow-x-auto px-4 sm:px-8 md:px-12 lg:px-20">
@@ -97,7 +110,7 @@ const Cart = () => {
                 <tbody>
                   {cartItems.map((item, index) => (
                     <tr
-                      key={`${item._cartId}-${index}`}
+                      key={`${item._id || item.productId}-${index}`}
                       className="border-t hover:bg-gray-50"
                     >
                       <td className="p-2 border text-center">{index + 1}</td>
@@ -106,7 +119,9 @@ const Cart = () => {
                           src={
                             item.image?.startsWith("http")
                               ? item.image
-                              : `http://localhost:8080/uploads/${item.image}`
+                              : `${import.meta.env.VITE_API_URL}/uploads/${
+                                  item.image
+                                }`
                           }
                           alt={item.title}
                           onError={(e) =>
@@ -131,18 +146,9 @@ const Cart = () => {
                             -
                           </button>
 
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              handleQuantityChange(
-                                item.productId,
-                                parseInt(e.target.value)
-                              )
-                            }
-                            className="w-12 text-center border border-gray-300 rounded"
-                            min="1"
-                          />
+                          <span className="w-12 text-center border border-gray-300 rounded py-1">
+                            {item.quantity}
+                          </span>
 
                           <button
                             className="px-2 py-1 bg-gray-200 text-black font-bold rounded-r hover:bg-gray-300"
@@ -163,7 +169,7 @@ const Cart = () => {
                       </td>
                       <td className="p-2 border text-center">
                         <button
-                          onClick={() => handleDelete(item.productId)} // Use _cartId here
+                          onClick={() => handleDelete(item.productId)}
                           className="text-red-600 hover:text-red-800 text-lg"
                         >
                           <FaTrash />
@@ -181,7 +187,7 @@ const Cart = () => {
                   Total: ${calculateTotal().toFixed(2)}
                 </h3>
                 <button
-                  className="bg-black text-white px-4 py-1.5 rounded hover:bg-gray-800 font-ubuntu transition-all duration-200"
+                  className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800 font-ubuntu transition-all duration-200"
                   onClick={handleCheckout}
                 >
                   Proceed to Billing

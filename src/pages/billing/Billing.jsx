@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { MdOutlineEmail } from "react-icons/md";
 import Footer from "../../components/footer/Footer";
 import { loadStripe } from "@stripe/stripe-js";
-import axios from "axios";
+import api from "../../../api/axios";
 import { clearCart } from "../../slices/CartSlice";
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
@@ -24,6 +24,7 @@ const Billing = () => {
     paymentMethod: "STRIPE",
   });
 
+  const [formErrors, setFormErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   const cartItems = useSelector((state) => state.cart.cartItems);
@@ -40,16 +41,37 @@ const Billing = () => {
   const discount = 0;
   const grandTotal = subtotal + shipping + tax - discount;
 
+  const validateForm = () => {
+    const errors = {};
+
+    if (!formData.name.trim()) errors.name = "Name is required";
+    if (!formData.email.trim()) errors.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(formData.email))
+      errors.email = "Email is invalid";
+    if (!formData.address.trim()) errors.address = "Address is required";
+    if (!formData.city.trim()) errors.city = "City is required";
+    if (!formData.phone.trim()) errors.phone = "Phone is required";
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleCheckout = async () => {
+    if (!validateForm()) {
+      alert("Please fill all required fields correctly.");
+      return;
+    }
+
     const token = localStorage.getItem("accessToken");
     console.log("🧪 Token in Checkout:", token);
 
     if (!user) return alert("Please log in first.");
+    if (cartItems.length === 0) return alert("Your cart is empty.");
 
-    setLoading(true); // 🔹 Loader start
+    setLoading(true);
 
     const sanitizedItems = cartItems.map((item) => ({
-      productId: item._id,
+      productId: item._id || item.productId,
       sku: item.sku || "",
       name: item.title,
       image: item.image,
@@ -58,7 +80,7 @@ const Billing = () => {
     }));
 
     const orderPayload = {
-      customerId: user?._id,
+      customerId: user?._id || user?.id,
       customerInfo: {
         name: formData.name,
         email: formData.email,
@@ -91,32 +113,20 @@ const Billing = () => {
       },
     };
 
-    if (formData.paymentMethod === "CASH_ON_DELIVERY") {
-      try {
-        const res = await axios.post(
-          "http://localhost:8080/api/orders",
-          orderPayload,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+    try {
+      if (formData.paymentMethod === "CASH_ON_DELIVERY") {
+        const res = await api.post("/api/orders", orderPayload, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
         console.log("COD Order Success:", res.data);
         dispatch(clearCart());
         navigate("/order-confirmed");
-      } catch (err) {
-        console.error("COD Order Error:", err.response?.data || err.message);
-        alert("Failed to place order.");
-      } finally {
-        setLoading(false); // 🔹 Loader stop
-      }
-    } else {
-      try {
+      } else {
         const stripe = await stripePromise;
-
-        const res = await axios.post(
-          "http://localhost:8080/api/stripe/create-checkout-session",
+        const res = await api.post(
+          "/api/stripe/create-checkout-session",
           orderPayload,
           {
             headers: {
@@ -124,25 +134,39 @@ const Billing = () => {
             },
           }
         );
+
         const { id } = res.data;
-        await stripe.redirectToCheckout({ sessionId: id });
-      } catch (error) {
-        console.error("Stripe Checkout Error:", error);
-        alert("Stripe payment failed. Try again.");
-        setLoading(false); // 🔹 Loader stop
+        const result = await stripe.redirectToCheckout({ sessionId: id });
+
+        if (result.error) {
+          console.error("Stripe redirect error:", result.error);
+          alert("Payment failed: " + result.error.message);
+        }
       }
+    } catch (error) {
+      console.error("Checkout Error:", error.response?.data || error.message);
+      alert(
+        error.response?.data?.message ||
+          "Failed to process order. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
+    // Clear error when field is edited
+    if (formErrors[name]) {
+      setFormErrors({ ...formErrors, [name]: "" });
+    }
   };
 
   return (
     <>
       <div className="container max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 mt-12">
-        <h2 className="text-xl sm:text-3xl  font-semibold text-center mb-8 font-ubuntu">
+        <h2 className="text-xl sm:text-3xl font-semibold text-center mb-8 font-ubuntu">
           Billing
         </h2>
 
@@ -168,9 +192,16 @@ const Billing = () => {
                     name={field}
                     value={formData[field]}
                     onChange={handleChange}
-                    className="w-full border border-gray-300 p-2 rounded-sm text-sm mt-1"
+                    className={`w-full border ${
+                      formErrors[field] ? "border-red-500" : "border-gray-300"
+                    } p-2 rounded-sm text-sm mt-1`}
                     placeholder={`Enter ${field}`}
                   />
+                  {formErrors[field] && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {formErrors[field]}
+                    </p>
+                  )}
                 </div>
               ))}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -187,9 +218,16 @@ const Billing = () => {
                       name={field}
                       value={formData[field]}
                       onChange={handleChange}
-                      className="w-full border border-gray-300 p-2 rounded-sm text-sm mt-1"
+                      className={`w-full border ${
+                        formErrors[field] ? "border-red-500" : "border-gray-300"
+                      } p-2 rounded-sm text-sm mt-1`}
                       placeholder={`Enter ${field}`}
                     />
+                    {formErrors[field] && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {formErrors[field]}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -209,7 +247,9 @@ const Billing = () => {
                     src={
                       item.image?.startsWith("http")
                         ? item.image
-                        : `http://localhost:8080/uploads/${item.image}`
+                        : `${import.meta.env.VITE_API_URL}/uploads/${
+                            item.image
+                          }`
                     }
                     alt={item.title}
                     onError={(e) => (e.target.src = "/images/placeholder.png")}
@@ -231,19 +271,19 @@ const Billing = () => {
             <div className="mt-4 border-t pt-4 space-y-2 text-right text-sm">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal:</span>
-                <span>$ {subtotal}</span>
+                <span>$ {subtotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>Shipping:</span>
-                <span>$ {shipping}</span>
+                <span>$ {shipping.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>Tax:</span>
-                <span>$ {tax}</span>
+                <span>$ {tax.toLocaleString()}</span>
               </div>
               <div className="flex justify-between font-bold text-lg">
                 <span>Total:</span>
-                <span>$ {grandTotal}</span>
+                <span>$ {grandTotal.toLocaleString()}</span>
               </div>
             </div>
 
@@ -277,7 +317,7 @@ const Billing = () => {
 
             <button
               onClick={handleCheckout}
-              disabled={loading}
+              disabled={loading || cartItems.length === 0}
               className="mt-6 w-full bg-black text-white py-2 rounded-md text-sm hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

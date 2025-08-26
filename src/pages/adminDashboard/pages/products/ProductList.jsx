@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../../../../../api/axios";
 import { FaEdit, FaTrash } from "react-icons/fa";
 import { FiPlus } from "react-icons/fi";
 import { toast } from "react-toastify";
@@ -15,9 +15,7 @@ const ProductList = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await axios.get(
-          "http://localhost:8080/api/products/get-all-products"
-        );
+        const res = await api.get("/api/products/get-all-products");
         setProducts(res.data);
       } catch (err) {
         console.error("Error fetching products:", err);
@@ -34,9 +32,7 @@ const ProductList = () => {
     if (!confirm) return;
 
     try {
-      const res = await axios.delete(
-        `http://localhost:8080/api/products/delete-product/${id}`
-      );
+      const res = await api.delete(`/api/products/delete-product/${id}`);
       setProducts(products.filter((item) => item._id !== id));
       toast.success(res.data.message || "Product deleted");
     } catch (err) {
@@ -63,8 +59,8 @@ const ProductList = () => {
     const formData = new FormData(e.target);
 
     try {
-      await axios.put(
-        `http://localhost:8080/api/products/edit-product/${selectedProduct._id}`,
+      await api.put(
+        `/api/products/edit-product/${selectedProduct._id}`,
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
@@ -72,9 +68,7 @@ const ProductList = () => {
       handleCloseModal();
 
       // Optional: Refetch product list
-      const res = await axios.get(
-        "http://localhost:8080/api/products/get-all-products"
-      );
+      const res = await api.get("/api/products/get-all-products");
       setProducts(res.data);
     } catch (err) {
       toast.error("Edit failed");
@@ -114,7 +108,9 @@ const ProductList = () => {
               <tr key={prod._id} className="hover:bg-gray-50">
                 <td className="px-4 py-2 border text-center">
                   <img
-                    src={`http://localhost:8080/uploads/${prod.image}`}
+                    src={`${import.meta.env.VITE_API_URL}/uploads/${
+                      prod.image
+                    }`}
                     alt={prod.title}
                     className="w-16 h-16 object-cover rounded"
                   />
@@ -161,7 +157,10 @@ const ProductList = () => {
             </h2>
 
             <div>
-              <label className="block mb-1 font-ubuntu font-semibold" htmlFor="title">
+              <label
+                className="block mb-1 font-ubuntu font-semibold"
+                htmlFor="title"
+              >
                 Title
               </label>
               <input
@@ -174,7 +173,10 @@ const ProductList = () => {
             </div>
 
             <div>
-              <label className="block mb-1 font-ubuntu font-semibold" htmlFor="price">
+              <label
+                className="block mb-1 font-ubuntu font-semibold"
+                htmlFor="price"
+              >
                 Price
               </label>
               <input
@@ -188,7 +190,10 @@ const ProductList = () => {
             </div>
 
             <div>
-              <label className="block mb-1 font-ubuntu font-semibold" htmlFor="stock">
+              <label
+                className="block mb-1 font-ubuntu font-semibold"
+                htmlFor="stock"
+              >
                 Stock
               </label>
               <input
@@ -202,7 +207,10 @@ const ProductList = () => {
             </div>
 
             <div>
-              <label className="block mb-1 font-ubuntu font-semibold" htmlFor="image">
+              <label
+                className="block mb-1 font-ubuntu font-semibold"
+                htmlFor="image"
+              >
                 Image
               </label>
               <input

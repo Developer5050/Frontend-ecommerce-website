@@ -19,7 +19,7 @@ const Contact = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log(form); // Replace with backend call
+    console.log(form); 
     alert("Your message has been submitted!");
     setForm({ name: "", email: "", message: "" });
   };

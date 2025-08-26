@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../../../api/axios"; // Your custom axios instance
 import { useLocation, useNavigate } from "react-router-dom";
 import { addWishlist, removeWishlist } from "../../slices/WishListSlice";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
@@ -39,21 +39,16 @@ const Kid = () => {
         item._id?.toString() === productId
     );
 
-    if (isInWishlist) {
-      dispatch(removeWishlist(productId));
-      try {
-        await axios.delete(
-          `http://localhost:8080/api/wishlist/delete/${productId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      } catch (err) {
-        console.error("Error removing wishlist", err);
-      }
-    } else {
-      dispatch(addWishlist({ productId }));
-      try {
-        await axios.post(
-          "http://localhost:8080/api/wishlist/add",
+    try {
+      if (isInWishlist) {
+        dispatch(removeWishlist(productId));
+        await api.delete(`/api/wishlist/delete/${productId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } else {
+        dispatch(addWishlist({ productId }));
+        await api.post(
+          "/api/wishlist/add",
           { productId },
           {
             headers: {
@@ -62,9 +57,9 @@ const Kid = () => {
             },
           }
         );
-      } catch (err) {
-        console.error("Error adding wishlist", err);
       }
+    } catch (err) {
+      console.error("Error updating wishlist", err);
     }
   };
 
@@ -80,9 +75,7 @@ const Kid = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await axios.get(
-          "http://localhost:8080/api/products/category/Kids"
-        );
+        const res = await api.get("/api/products/category/Kids");
         setProducts(res.data);
         setLoading(false);
       } catch (err) {
@@ -229,14 +222,16 @@ const Kid = () => {
             return (
               <div
                 key={product._id}
-                className="border rounded-lg shadow p-4 w-full max-w-[260px] relative"
+                className="border rounded-lg shadow p-4 w-full max-w-[260px] relative cursor-pointer"
                 onClick={() => navigate(`/product/${product._id}`)}
               >
                 <img
                   src={
                     product.image?.startsWith("http")
                       ? product.image
-                      : `http://localhost:8080/uploads/${product.image}`
+                      : `${import.meta.env.VITE_API_URL}/uploads/${
+                          product.image
+                        }`
                   }
                   alt={product.title}
                   onError={(e) => (e.target.src = "/images/placeholder.png")}
@@ -249,12 +244,12 @@ const Kid = () => {
                     e.stopPropagation(); // ✅ navigation ko rok lega
                     toggleWishlist(product);
                   }}
-                  className="absolute top-2 right-2 text-xl"
+                  className="absolute top-3 right-3 text-xl bg-white p-1 rounded-full shadow-md hover:scale-110 transition"
                 >
                   {isInWishlist ? (
                     <FaHeart className="text-red-500" />
                   ) : (
-                    <FaRegHeart className="text-gray-500" />
+                    <FaRegHeart className="text-gray-500 hover:text-red-400" />
                   )}
                 </button>
 
@@ -277,6 +272,12 @@ const Kid = () => {
                       </span>
                       <span className="line-through text-gray-500 font-bold">
                         ${product.price}
+                      </span>
+                      <span className="text-sm text-green-600 font-medium ml-2">
+                        {Math.round(
+                          (1 - product.discount / product.price) * 100
+                        )}
+                        % off
                       </span>
                     </>
                   ) : (

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../../../../api/axios"
 import {
   ResponsiveContainer,
   LineChart,
@@ -27,8 +27,8 @@ const Dashboard = () => {
 
   const fetchStats = async () => {
     try {
-      const res = await axios.get(
-        "http://localhost:8080/api/dashboard/dashboard-stats"
+      const res = await api.get(
+        "/api/dashboard/dashboard-stats"
       );
       setStats(res.data);
     } catch (err) {
@@ -43,9 +43,9 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchRevenueData = async () => {
       try {
-        const res = await axios.get("http://localhost:8080/api/orders");
-        const usersRes = await axios.get(
-          "http://localhost:8080/api/users/customers"
+        const res = await api.get("/api/orders");
+        const usersRes = await api.get(
+          "/api/users/customers"
         );
 
         const orders = res.data || [];

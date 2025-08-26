@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import { addWishlist, removeWishlist } from "../../slices/WishListSlice";
+import api from "../../../api/axios";
 
 const AllProduct = ({ searchQuery }) => {
   const [products, setProducts] = useState([]);
@@ -38,18 +38,17 @@ const AllProduct = ({ searchQuery }) => {
     if (isInWishlist) {
       dispatch(removeWishlist(productId));
       try {
-        await axios.delete(
-          `http://localhost:8080/api/wishlist/delete/${productId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await api.delete(`/api/wishlist/delete/${productId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
       } catch (err) {
         console.error("Error removing wishlist", err);
       }
     } else {
       dispatch(addWishlist({ productId }));
       try {
-        await axios.post(
-          "http://localhost:8080/api/wishlist/add",
+        await api.post(
+          "/api/wishlist/add",
           { productId },
           {
             headers: {
@@ -73,10 +72,10 @@ const AllProduct = ({ searchQuery }) => {
       setLoading(true);
       try {
         const url = searchQuery
-          ? `http://localhost:8080/api/products/search?query=${searchQuery}`
-          : `http://localhost:8080/api/products/get-all-products`;
+          ? `/api/products/search?query=${searchQuery}`
+          : `/api/products/get-all-products`;
 
-        const res = await axios.get(url);
+        const res = await api.get(url);
         setProducts(res.data);
         setLoading(false);
       } catch (err) {
@@ -218,7 +217,9 @@ const AllProduct = ({ searchQuery }) => {
                       src={
                         product.image?.startsWith("http")
                           ? product.image
-                          : `http://localhost:8080/uploads/${product.image}`
+                          : `${import.meta.env.VITE_API_URL}/uploads/${
+                              product.image
+                            }`
                       }
                       alt={product.title}
                       onError={(e) =>
@@ -259,6 +260,12 @@ const AllProduct = ({ searchQuery }) => {
                         </span>
                         <span className=" line-through text-gray-500 font-bold">
                           ${product.price}
+                        </span>
+                        <span className="text-sm text-green-600 font-medium ml-2">
+                          {Math.round(
+                            (1 - product.discount / product.price) * 100
+                          )}
+                          % off
                         </span>
                       </>
                     ) : (

@@ -10,9 +10,11 @@ import { useSelector, useDispatch } from "react-redux";
 import { fetchWishlist } from "../../slices/WishListSlice";
 import { FaRegUser } from "react-icons/fa";
 import { Heart } from "lucide-react";
+import api from "../../../api/axios";
 
 const Dropdown = ({ title, items, mobile }) => {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   const routeMap = {
     Product: "/products",
@@ -80,7 +82,7 @@ const Dropdown = ({ title, items, mobile }) => {
               "Checkout",
               "Contact Us",
               "notFound",
-            ].includes(item); // ✅ check for static pages
+            ].includes(item);
 
             return (
               <Link
@@ -113,6 +115,7 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
   const [profileOpen, setProfileOpen] = useState(false);
   const [userName, setUserName] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const profileRef = useRef(null);
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -152,6 +155,38 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      // Call logout API endpoint
+      await api.post("/user/auth/logout");
+
+      // Clear local storage
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("user");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("role");
+
+      // Close profile dropdown
+      setProfileOpen(false);
+
+      // Redirect to login page
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout failed:", error);
+      // Even if API call fails, clear local storage and redirect
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("user");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("role");
+      navigate("/login");
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <nav
@@ -329,15 +364,13 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
                 </Link>
 
                 <button
-                  onClick={() => {
-                    localStorage.removeItem("accessToken");
-                    localStorage.removeItem("refreshToken");
-                    localStorage.removeItem("user");
-                    navigate("/login");
-                  }}
-                  className="w-full text-left py-2 font-ubuntu text-sm text-gray-700 hover:bg-gray-300 transition"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="w-full text-left py-2 font-ubuntu text-sm text-gray-700 hover:bg-gray-300 transition disabled:opacity-50"
                 >
-                  <div className="px-4">Logout</div>
+                  <div className="px-4">
+                    {loggingOut ? "Logging out..." : "Logout"}
+                  </div>
                 </button>
               </div>
             )}
@@ -346,14 +379,9 @@ const Navbar = ({ searchQuery, setSearchQuery }) => {
       </div>
 
       {/* Mobile Menu */}
-      {/* Mobile Menu */}
       {!isAdmin && mobileMenuOpen && (
         <div className="mt-3 flex flex-col gap-3 bg-gray-300 shadow-md md:hidden text-sm font-medium font-ubuntu rounded-lg p-4">
-          <Link
-            to="/"
-          >
-            Home
-          </Link>
+          <Link to="/">Home</Link>
           <Dropdown
             title="Pages"
             items={[

@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
@@ -8,11 +7,13 @@ import {
   addWishlist,
   removeWishlist,
 } from "../../slices/WishListSlice";
+import api from "../../../api/axios";
 
 const Products = () => {
   const [products, setProducts] = useState([]);
   const [viewAll, setViewAll] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [wishlistLoading, setWishlistLoading] = useState({});
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -23,23 +24,38 @@ const Products = () => {
     useSelector((state) => state.auth?.token) ||
     localStorage.getItem("accessToken");
 
+  // Create a Set for faster wishlist lookups
+  const wishlistSet = React.useMemo(() => {
+    return new Set(
+      wishlist.map((item) => item.productId?.toString() || item._id?.toString())
+    );
+  }, [wishlist]);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api.get("/api/products/new-arrivals");
+      setProducts(res.data);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        await dispatch(fetchWishlist()); // redux me wishlist la raha hai
-        const res = await axios.get(
-          "http://localhost:8080/api/products/new-arrivals"
-        );
-        setProducts(res.data);
+        // Parallel fetching for better performance
+        await Promise.all([dispatch(fetchWishlist()), fetchProducts()]);
       } catch (error) {
         console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
       }
     };
+
     fetchData();
-  }, [dispatch]);
+  }, [dispatch, fetchProducts]);
 
   const toggleWishlist = async (product) => {
     if (!token) {
@@ -48,25 +64,20 @@ const Products = () => {
     }
 
     const productId = product._id.toString();
-    const isInWishlist = wishlist.some(
-      (item) => item.productId?.toString() === productId || item._id?.toString() === productId
-    );
+    setWishlistLoading((prev) => ({ ...prev, [productId]: true }));
 
-    if (isInWishlist) {
-      dispatch(removeWishlist(productId));
-      try {
-        await axios.delete(
-          `http://localhost:8080/api/wishlist/delete/${productId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      } catch (err) {
-        console.error("Error removing wishlist", err);
-      }
-    } else {
-      dispatch(addWishlist({ productId }));
-      try {
-        await axios.post(
-          "http://localhost:8080/api/wishlist/add",
+    try {
+      const isInWishlist = wishlistSet.has(productId);
+
+      if (isInWishlist) {
+        dispatch(removeWishlist(productId));
+        await api.delete(`/api/wishlist/delete/${productId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } else {
+        dispatch(addWishlist({ productId }));
+        await api.post(
+          "/api/wishlist/add",
           { productId },
           {
             headers: {
@@ -75,15 +86,23 @@ const Products = () => {
             },
           }
         );
-      } catch (err) {
-        console.error("Error adding wishlist", err);
       }
+    } catch (err) {
+      console.error("Error updating wishlist", err);
+      // Revert the UI change on error
+      if (wishlistSet.has(productId)) {
+        dispatch(addWishlist({ productId }));
+      } else {
+        dispatch(removeWishlist(productId));
+      }
+    } finally {
+      setWishlistLoading((prev) => ({ ...prev, [productId]: false }));
     }
   };
 
   const displayProducts = viewAll ? products : products.slice(0, 4);
 
-  const renderStars = (rating) => {
+  const renderStars = useCallback((rating) => {
     const stars = [];
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating - fullStars >= 0.5;
@@ -95,95 +114,129 @@ const Products = () => {
         </span>
       );
     }
+
     if (hasHalfStar) {
       stars.push(
-        <span key="half" className="relative text-sm">
-          <span className="text-yellow-500 absolute left-0 w-1/2 overflow-hidden">
-            &#9733;
-          </span>
+        <span
+          key="half"
+          className="text-yellow-500 text-sm relative inline-block w-3"
+        >
+          <span className="absolute left-0 overflow-hidden w-1/2">&#9733;</span>
           <span className="text-gray-300">&#9733;</span>
         </span>
       );
     }
-    while (stars.length < 5) {
+
+    const emptyStars = 5 - stars.length;
+    for (let i = 0; i < emptyStars; i++) {
       stars.push(
-        <span key={`empty-${stars.length}`} className="text-gray-300 text-sm">
+        <span key={`empty-${i}`} className="text-gray-300 text-sm">
           &#9733;
         </span>
       );
     }
+
     return stars;
-  };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="px-4 py-5 max-w-screen-xl mx-auto mt-20">
+        <h2 className="text-center text-3xl font-extrabold font-ubuntu mb-10">
+          New Arrivals
+        </h2>
+        <div className="flex justify-center items-center py-10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+          <span className="ml-3">Loading products...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-5 max-w-screen-xl mx-auto">
       <section id="new-arrivals" className="mt-20">
-        <h2 className="text-center text-xl sm:text-3xl md:text-4xl font-extrabold font-ubuntu mt-16 mb-10">
+        <h2 className="text-center text-3xl font-extrabold font-ubuntu mb-10">
           New Arrivals
         </h2>
       </section>
 
-      {loading ? (
-        <div className="text-center font-ubuntu">Loading...</div>
-      ) : products.length === 0 ? (
-        <div className="text-center text-gray-500 font-ubuntu">
+      {products.length === 0 ? (
+        <div className="text-center text-gray-500 py-10">
           No New Products Found
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {displayProducts.map((item) => {
-              const isInWishlist = wishlist.some(
-                (w) =>
-                  w.productId?.toString() === item._id.toString() ||
-                  w._id?.toString() === item._id.toString()
-              );
+              const productId = item._id.toString();
+              const isInWishlist = wishlistSet.has(productId);
+              const isLoading = wishlistLoading[productId];
 
               return (
                 <div
-                  key={item._id}
-                  className="border rounded-sm p-3 shadow-md bg-white flex flex-col relative"
+                  key={productId}
+                  className="border rounded-lg p-4 shadow-md bg-white flex flex-col relative hover:shadow-lg transition-shadow duration-300"
                 >
                   <div className="relative">
                     <img
-                      src={`http://localhost:8080/uploads/${item.image}`}
+                      src={`${import.meta.env.VITE_API_URL}/uploads/${
+                        item.image
+                      }`}
                       alt={item.title}
-                      onClick={() => navigate(`/product/${item._id}`)}
-                      className="w-full h-48 sm:h-52 md:h-56 object-cover rounded-lg cursor-pointer hover:scale-105 transition duration-300 ease-in-out"
+                      onClick={() => navigate(`/product/${productId}`)}
+                      className="w-full h-48 object-cover rounded-md cursor-pointer hover:opacity-90 transition-opacity duration-200"
+                      loading="lazy"
                     />
                     <button
-                      onClick={() => toggleWishlist(item)}
-                      className="absolute top-2 right-2 text-xl"
+                      onClick={() => !isLoading && toggleWishlist(item)}
+                      disabled={isLoading}
+                      className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-gray-100 disabled:opacity-50"
+                      aria-label={
+                        isInWishlist
+                          ? "Remove from wishlist"
+                          : "Add to wishlist"
+                      }
                     >
-                      {isInWishlist ? (
-                        <FaHeart className="text-red-500" />
+                      {isLoading ? (
+                        <div className="w-4 h-4 border-t-2 border-red-500 border-solid rounded-full animate-spin"></div>
+                      ) : isInWishlist ? (
+                        <FaHeart className="text-red-500 text-lg" />
                       ) : (
-                        <FaRegHeart className="text-gray-500" />
+                        <FaRegHeart className="text-gray-600 text-lg" />
                       )}
                     </button>
                   </div>
 
-                  <h2 className="text-md sm:text-base font-bold font-ubuntu mt-3 truncate">
+                  <h3 className="text-lg font-semibold mt-3 truncate">
                     {item.title}
-                  </h2>
+                  </h3>
 
-                  <div className="flex items-center gap-1 mt-1">
+                  <div className="flex items-center gap-1 mt-2">
                     {renderStars(item.rating || 4)}
-                    <span className="text-xs sm:text-sm text-gray-600">
+                    <span className="text-sm text-gray-600 ml-1">
                       ({item.rating || 4})
                     </span>
                   </div>
 
-                  <div className="mt-1 ml-2 text-sm sm:text-lg">
+                  <div className="mt-2">
                     {item.discount ? (
-                      <>
-                        <span className="font-bold mr-2">${item.discount}</span>
-                        <span className="line-through text-gray-500 font-bold">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-lg text-gray-900">
+                          ${item.discount}
+                        </span>
+                        <span className="text-sm text-gray-500 line-through">
                           ${item.price}
                         </span>
-                      </>
+                        <span className="text-sm text-green-600 font-medium">
+                          {Math.round((1 - item.discount / item.price) * 100)}%
+                          off
+                        </span>
+                      </div>
                     ) : (
-                      <span className="font-bold">${item.price}</span>
+                      <span className="font-bold text-lg text-gray-900">
+                        ${item.price}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -192,12 +245,12 @@ const Products = () => {
           </div>
 
           {products.length > 4 && (
-            <div className="text-center mt-6">
+            <div className="text-center mt-8">
               <button
                 onClick={() => setViewAll(!viewAll)}
-                className="bg-black text-white px-6 py-2 mt-7 rounded-sm hover:bg-gray-800 transition"
+                className="bg-black text-white px-6 py-2 rounded-md hover:bg-gray-800 transition-colors duration-200 font-medium"
               >
-                {viewAll ? "View Less" : "View All"}
+                {viewAll ? "View Less" : "View All Products"}
               </button>
             </div>
           )}

@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { setUser } from "../../slices/AuthSlice";
 import { useDispatch, useSelector } from "react-redux";
+import api from "../../../api/axios";
 
-const ProfilePage = () => {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+const Profile = () => {
+  const [formData, setFormData] = useState({ name: "", email: "" });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const dispatch = useDispatch();
   const { user, token } = useSelector((state) => state.auth);
@@ -19,28 +20,36 @@ const ProfilePage = () => {
         const storedUser = user || JSON.parse(localStorage.getItem("user"));
 
         if (storedUser) {
-          setName(storedUser.name || "");
-          setEmail(storedUser.email || "");
+          setFormData({
+            name: storedUser.name || "",
+            email: storedUser.email || "",
+          });
           setLoading(false);
           return;
         }
 
         if (!storedToken) {
           console.warn("⚠ No token found");
+          setMessage("Please log in to view your profile");
           setLoading(false);
           return;
         }
 
-        const res = await axios.get("http://localhost:8080/user/auth/profile", {
+        const res = await api.get("/user/auth/profile", {
           headers: { Authorization: `Bearer ${storedToken}` },
         });
 
         dispatch(setUser({ ...res.data, token: storedToken }));
-        setName(res.data.name || "");
-        setEmail(res.data.email || "");
+        setFormData({
+          name: res.data.name || "",
+          email: res.data.email || "",
+        });
       } catch (err) {
         console.error("❌ Failed to fetch profile", err);
-        setMessage("Failed to load profile");
+        setMessage(
+          err.response?.data?.message ||
+            "Failed to load profile. Please try again."
+        );
       } finally {
         setLoading(false);
       }
@@ -49,17 +58,49 @@ const ProfilePage = () => {
     fetchProfile();
   }, [dispatch, token, user]);
 
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = "Name is required";
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "Email is invalid";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: "" });
+    }
+  };
+
   const handleUpdate = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setMessage("");
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setUpdating(true);
 
     try {
       const storedToken = token || localStorage.getItem("accessToken");
 
-      const res = await axios.put(
-        "http://localhost:8080/user/auth/update-profile",
-        { name, email },
+      const res = await api.put(
+        "/user/auth/update-profile",
+        { name: formData.name, email: formData.email },
         {
           headers: { Authorization: `Bearer ${storedToken}` },
         }
@@ -74,99 +115,120 @@ const ProfilePage = () => {
       );
     } catch (err) {
       console.error("❌ Update failed", err);
-      setMessage("❌ Update failed");
+      setMessage(
+        err.response?.data?.message || "❌ Update failed. Please try again."
+      );
     } finally {
-      setLoading(false);
+      setUpdating(false);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="max-w-md mx-auto p-6 mt-24 border border-gray-300 rounded-lg shadow-md bg-white">
+        <div className="flex justify-center items-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+          <span className="ml-3 text-gray-600">Loading profile...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-md mx-auto p-4 mt-24 border border-gray-500 rounded shadow">
-      <h2 className="text-xl font-bold font-ubuntu mb-4 text-center">
+    <div className="max-w-md mx-auto p-6 mt-20 border border-gray-300 rounded-lg shadow-md bg-white">
+      <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">
         Update Profile
       </h2>
 
-      {loading && !name && !email ? (
-        <p className="text-center">Loading profile...</p>
-      ) : (
-        <form onSubmit={handleUpdate} className="space-y-4 font-ubuntu">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Name
-            </label>
-            <input
-              className="w-full p-2 border rounded-sm text-sm"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
-              disabled={loading}
-            />
-          </div>
+      <form onSubmit={handleUpdate} className="space-y-5">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-black ${
+              errors.name ? "border-red-500" : "border-gray-300"
+            }`}
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            placeholder="Enter your name"
+            disabled={updating}
+          />
+          {errors.name && (
+            <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+          )}
+        </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              className="w-full p-2 border rounded-sm text-sm"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              disabled={loading}
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Email <span className="text-red-500">*</span>
+          </label>
+          <input
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-black ${
+              errors.email ? "border-red-500" : "border-gray-300"
+            }`}
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            placeholder="Enter your email"
+            disabled={updating}
+          />
+          {errors.email && (
+            <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+          )}
+        </div>
 
-          <button
-            type="submit"
-            className="bg-black hover:bg-gray-800 text-white px-4 py-1 rounded-sm w-20 flex justify-center items-center gap-2"
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <svg
-                  className="animate-spin h-5 w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z"
-                  ></path>
-                </svg>
-                Updating...
-              </>
-            ) : (
-              "Update"
-            )}
-          </button>
-        </form>
-      )}
+        <button
+          type="submit"
+          className="w-full bg-black hover:bg-gray-800 text-white font-medium py-2.5 rounded-md transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+          disabled={updating}
+        >
+          {updating ? (
+            <>
+              <svg
+                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              Updating...
+            </>
+          ) : (
+            "Update Profile"
+          )}
+        </button>
+      </form>
 
       {message && (
-        <p
-          className={`mt-4 font-ubuntu text-center ${
-            message.toLowerCase().includes("failed")
-              ? "text-red-600"
-              : "text-green-600"
+        <div
+          className={`mt-4 p-3 rounded-md text-center ${
+            message.includes("✅") || message.toLowerCase().includes("success")
+              ? "bg-green-100 text-green-700"
+              : "bg-red-100 text-red-700"
           }`}
         >
           {message}
-        </p>
+        </div>
       )}
     </div>
   );
 };
 
-export default ProfilePage;
+export default Profile;

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axios from "axios";
 import Footer from "../../components/footer/Footer";
 import { MdOutlineEmail } from "react-icons/md";
 import { useDispatch } from "react-redux";
 import { addToCart } from "../../slices/CartSlice";
+import api from "../../../api/axios";
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -17,24 +17,35 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [mainImage, setMainImage] = useState("");
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [addingToCart, setAddingToCart] = useState(false);
 
   // Fetch product
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const res = await axios.get(
-          `http://localhost:8080/api/products/product/${id}`
-        );
+        setLoading(true);
+        const res = await api.get(`/api/products/product/${id}`);
         setProduct(res.data);
 
-        // Correct image URL with encoding
-        const imageUrl =
-          res.data.image?.startsWith("http")
-            ? res.data.image
-            : `http://localhost:8080/uploads/${encodeURIComponent(res.data.image)}`;
+        // Handle image URL correctly
+        let imageUrl = "/images/placeholder.png";
+        if (res.data.image) {
+          if (res.data.image.startsWith("http")) {
+            imageUrl = res.data.image;
+          } else {
+            // Remove any duplicate uploads/ path if present
+            const cleanPath = res.data.image.replace(/^uploads\//, "");
+            imageUrl = `https://backend-ecommerce-website-1-1dac.onrender.com/uploads/${cleanPath}`;
+          }
+        }
         setMainImage(imageUrl);
+        setError(null);
       } catch (err) {
+        console.error("Error fetching product:", err);
         setError("Product not found.");
+      } finally {
+        setLoading(false);
       }
     };
     fetchProduct();
@@ -50,6 +61,8 @@ const ProductDetail = () => {
       return;
     }
 
+    setAddingToCart(true);
+
     const cartItem = {
       userId: user.id,
       productId: product._id,
@@ -62,10 +75,7 @@ const ProductDetail = () => {
     };
 
     try {
-      const res = await axios.post(
-        "http://localhost:8080/api/cart/add",
-        cartItem
-      );
+      const res = await api.post("/api/cart/add", cartItem);
       if (res.data.cartItem) {
         dispatch(addToCart(res.data.cartItem));
         navigate("/cart");
@@ -73,24 +83,27 @@ const ProductDetail = () => {
         throw new Error("Failed to add item to cart.");
       }
     } catch (err) {
+      console.error("Add to cart error:", err);
       alert("Error: Unable to add to cart.");
+    } finally {
+      setAddingToCart(false);
     }
   };
 
-  if (error)
-    return (
-      <div className="text-red-500 text-center mt-10 font-ubuntu">{error}</div>
-    );
-  if (!product)
-    return <div className="text-center mt-10 font-ubuntu">Loading...</div>;
-
-  const colors = Array.isArray(product.color)
-    ? product.color.filter((c) => typeof c === "string" && c.trim())
-    : typeof product.color === "string"
-    ? product.color.split(",").filter((c) => c.trim())
+  // Helper functions for product options
+  const colors = product
+    ? Array.isArray(product.color)
+      ? product.color.filter((c) => typeof c === "string" && c.trim())
+      : typeof product.color === "string"
+      ? product.color.split(",").filter((c) => c.trim())
+      : []
     : [];
 
-  const sizes = Array.isArray(product.size) ? product.size : [product.size];
+  const sizes = product
+    ? Array.isArray(product.size)
+      ? product.size.filter((s) => s)
+      : [product.size].filter((s) => s)
+    : [];
 
   const renderStars = (rating) => {
     const stars = [];
@@ -106,11 +119,8 @@ const ProductDetail = () => {
     }
     if (hasHalfStar) {
       stars.push(
-        <span key="half" className="relative text-sm">
-          <span className="text-yellow-500 absolute left-0 w-1/2 overflow-hidden">
-            ★
-          </span>
-          <span className="text-gray-300">★</span>
+        <span key="half" className="text-yellow-500 text-sm">
+          ★
         </span>
       );
     }
@@ -124,34 +134,76 @@ const ProductDetail = () => {
     return stars;
   };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-center font-ubuntu">
+          Loading product details...
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 mt-20">
+        <div className="text-red-500 text-center mt-10 font-ubuntu">
+          {error}
+        </div>
+        <button
+          onClick={() => navigate(-1)}
+          className="block mx-auto mt-4 bg-black text-white px-4 py-2 rounded-sm font-ubuntu text-sm hover:bg-gray-800"
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 mt-20">
+        <div className="text-center mt-10 font-ubuntu">Product not found.</div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="max-w-6xl mx-auto px-4 mt-20">
         <nav className="flex text-sm text-gray-600 mb-4 font-ubuntu">
-          <span className="hover:underline cursor-pointer">Home</span>
+          <span
+            className="hover:underline cursor-pointer"
+            onClick={() => navigate("/")}
+          >
+            Home
+          </span>
           <span className="mx-2">{">"}</span>
-          <span className="hover:underline cursor-pointer">Product</span>
+          <span
+            className="hover:underline cursor-pointer"
+            onClick={() => navigate("/products")}
+          >
+            Products
+          </span>
           <span className="mx-2">{">"}</span>
           <span className="text-gray-800 font-medium">{product.title}</span>
         </nav>
       </div>
 
-      <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-10">
-        <div className="p-4 flex justify-center bg-white shadow-sm">
+      <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-10 mb-10 px-4">
+        <div className="flex justify-center bg-white shadow-sm rounded-lg p-6">
           <img
             src={mainImage}
             alt={product.title}
             onError={(e) => (e.target.src = "/images/placeholder.png")}
-            className="w-[290px] h-[290px] object-cover"
+            className="w-full max-w-xs sm:max-w-sm md:max-w-sm h-auto object-contain rounded-lg mx-auto"
           />
         </div>
 
         {/* Product Info */}
-        <div className="space-y-3 mt-2">
-          <h2 className="text-2xl ml-3.5 font-bold font-ubuntu">
-            {product.title}
-          </h2>
-          <div className="flex items-center gap-2 ml-3.5">
+        <div className="space-y-4 mt-2">
+          <h2 className="text-2xl font-bold font-ubuntu">{product.title}</h2>
+          <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 mt-1">
               {renderStars(product.rating || 4)}
               <span className="text-xs text-gray-600">
@@ -160,7 +212,7 @@ const ProductDetail = () => {
             </div>
           </div>
 
-          <div className="flex gap-4 text-xl font-semibold ml-3.5">
+          <div className="flex gap-4 text-xl font-semibold">
             <span>${product.discountPrice || product.price}</span>
             {product.discountPrice && (
               <span className="line-through text-gray-500">
@@ -169,15 +221,13 @@ const ProductDetail = () => {
             )}
           </div>
 
-          <p className="text-gray-700 text-sm font-ubuntu ml-3.5">
-            {product.desc}
-          </p>
+          <p className="text-gray-700 text-sm font-ubuntu">{product.desc}</p>
 
           {/* Color Options */}
           {colors.length > 0 && (
             <div>
-              <label className="font-medium font-ubuntu ml-3.5">Color:</label>
-              <div className="flex gap-2 mt-1 ml-3.5">
+              <label className="font-medium font-ubuntu">Color:</label>
+              <div className="flex gap-2 mt-1 flex-wrap">
                 {colors.map((color, i) => (
                   <button
                     key={i}
@@ -198,8 +248,8 @@ const ProductDetail = () => {
           {/* Size Options */}
           {sizes.length > 0 && (
             <div>
-              <label className="font-medium font-ubuntu ml-3.5">Size:</label>
-              <div className="flex gap-2 mt-1 ml-3.5">
+              <label className="font-medium font-ubuntu">Size:</label>
+              <div className="flex gap-2 mt-1 flex-wrap">
                 {sizes.map((size, i) => (
                   <button
                     key={i}
@@ -217,31 +267,50 @@ const ProductDetail = () => {
             </div>
           )}
 
-          {/* Quantity */}
+          {/* Quantity and Stock */}
           <div>
-            <label className="font-medium font-ubuntu ml-3.5">Quantity:</label>
-            <input
-              type="number"
-              min={1}
-              max={product.stock}
-              value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              className="border rounded px-3 py-1 w-24 ml-1"
-            />
+            <label className="font-medium font-ubuntu">Quantity:</label>
+            <div className="flex items-center mt-1">
+              <input
+                type="number"
+                min={1}
+                max={product.stock}
+                value={quantity}
+                onChange={(e) => {
+                  const value = Math.max(
+                    1,
+                    Math.min(product.stock, Number(e.target.value))
+                  );
+                  setQuantity(value);
+                }}
+                className="border rounded px-3 py-1 w-24"
+              />
+            </div>
           </div>
 
           <button
             onClick={handleAddToCart}
-            className="bg-black text-white px-4 py-2 ml-3.5 rounded-sm font-ubuntu text-sm hover:bg-gray-800"
+            disabled={product.stock === 0 || addingToCart}
+            className={`px-6 py-3 rounded-sm font-ubuntu text-sm w-full md:w-auto ${
+              product.stock === 0
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-black text-white hover:bg-gray-800"
+            }`}
           >
-            Add To Cart
+            {addingToCart
+              ? "Adding to Cart..."
+              : product.stock === 0
+              ? "Out of Stock"
+              : "Add To Cart"}
           </button>
         </div>
       </div>
 
       {/* Product Description */}
-      <div className="max-w-6xl mx-auto px-6 mt-12 mb-20 text-center">
-        <h3 className="text-xl font-bold font-ubuntu mb-2">Product Details</h3>
+      <div className="max-w-6xl mx-auto px-6 mt-12 mb-20">
+        <h3 className="text-xl font-bold font-ubuntu mb-4 text-center">
+          Product Details
+        </h3>
         <p className="text-gray-700 leading-relaxed font-ubuntu">
           {product.longDesc ||
             "This product is crafted with high-quality materials and offers both comfort and durability."}

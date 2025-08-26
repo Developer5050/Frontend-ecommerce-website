@@ -1,20 +1,24 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import axios from "axios";
-
-const BASE_URL = "http://localhost:8080"; // or your actual base URL
+import api from "../../api/axios";
 
 export const fetchWishlist = createAsyncThunk(
   "wishlist/fetch",
-  async (userId) => {
-    const { data } = await axios.get(`${BASE_URL}/api/wishlist/${userId}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-        "Content-Type": "application/json",
-      },
-    });
-    return { user: data.user, products: data.products };
+  async (userId, { rejectWithValue }) => {
+    try {
+      const { data } = await api.get(`/api/wishlist/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+        },
+      });
+      return { user: data.user, products: data.products };
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch wishlist"
+      );
+    }
   }
 );
+
 
 const wishlistSlice = createSlice({
   name: "wishlist",

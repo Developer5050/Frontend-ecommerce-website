@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+import React, { useEffect, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { addWishlist, removeWishlist } from "../../slices/WishListSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
+import api from "../../../api/axios";
 
 const Men = () => {
   const [products, setProducts] = useState([]);
@@ -14,7 +14,7 @@ const Men = () => {
   const location = useLocation();
 
   const dispatch = useDispatch();
-  const token = localStorage.getItem("accessToken"); // ✅ token fix
+  const token = localStorage.getItem("accessToken");
   const wishlist = useSelector((state) => state.wishlist.products || []);
 
   const [subCategoryFilter, setSubCategoryFilter] = useState("");
@@ -24,48 +24,48 @@ const Men = () => {
   const productsPerPage = 8;
   const subCategories = ["T-Shirts", "Shoes", "Jeans", "Jackets"];
 
-  // ✅ Wishlist Toggle
-  const toggleWishlist = async (product) => {
-    if (!token) {
-      alert("Please login to use wishlist feature.");
-      return;
-    }
-
-    const productId = product._id.toString();
-    const isInWishlist = wishlist.some(
-      (item) =>
-        item.productId?.toString() === productId ||
-        item._id?.toString() === productId
-    );
-
-    if (isInWishlist) {
-      dispatch(removeWishlist(productId));
-      try {
-        await axios.delete(
-          `http://localhost:8080/api/wishlist/delete/${productId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      } catch (err) {
-        console.error("Error removing wishlist", err);
+  // ✅ Wishlist Toggle - memoized with useCallback
+  const toggleWishlist = useCallback(
+    async (product) => {
+      if (!token) {
+        alert("Please login to use wishlist feature.");
+        return;
       }
-    } else {
-      dispatch(addWishlist({ productId }));
+
+      const productId = product._id.toString();
+      const isInWishlist = wishlist.some(
+        (item) =>
+          item.productId?.toString() === productId ||
+          item._id?.toString() === productId
+      );
+
       try {
-        await axios.post(
-          "http://localhost:8080/api/wishlist/add",
-          { productId },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
+        if (isInWishlist) {
+          dispatch(removeWishlist(productId));
+          await api.delete(`/api/wishlist/delete/${productId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } else {
+          dispatch(addWishlist({ productId }));
+          await api.post(
+            "/api/wishlist/add",
+            { productId },
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+        }
       } catch (err) {
-        console.error("Error adding wishlist", err);
+        console.error("Wishlist error:", err);
+        alert("Failed to update wishlist. Please try again.");
       }
-    }
-  };
+    },
+    [token, wishlist, dispatch]
+  );
+
   // ✅ Set subcategory from URL
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
@@ -78,14 +78,14 @@ const Men = () => {
   useEffect(() => {
     const fetchMenProducts = async () => {
       try {
-        const res = await axios.get(
-          "http://localhost:8080/api/products/category/Men"
-        );
+        setLoading(true);
+        const res = await api.get("/api/products/category/Men");
         setProducts(res.data);
-        setLoading(false);
+        setError(null);
       } catch (err) {
-        console.error(err);
-        setError("Failed to fetch Men products");
+        console.error("Failed to fetch products:", err);
+        setError("Failed to fetch Men products. Please try again later.");
+      } finally {
         setLoading(false);
       }
     };
@@ -113,15 +113,16 @@ const Men = () => {
     setDisplayed(filtered.slice(indexOfFirst, indexOfLast));
   }, [products, subCategoryFilter, sortOrder, currentPage]);
 
-  const totalPages = Math.ceil(
-    products.filter((p) =>
-      subCategoryFilter
-        ? p.subCategory?.toLowerCase() === subCategoryFilter.toLowerCase()
-        : true
-    ).length / productsPerPage
+  // Calculate total pages
+  const filteredProducts = products.filter((p) =>
+    subCategoryFilter
+      ? p.subCategory?.toLowerCase() === subCategoryFilter.toLowerCase()
+      : true
   );
 
-  const renderStars = (rating) => {
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+
+  const renderStars = useCallback((rating) => {
     const stars = [];
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating - fullStars >= 0.5;
@@ -135,11 +136,8 @@ const Men = () => {
     }
     if (hasHalfStar) {
       stars.push(
-        <span key="half" className="relative text-sm">
-          <span className="text-yellow-500 absolute left-0 w-1/2 overflow-hidden">
-            ★
-          </span>
-          <span className="text-gray-300">★</span>
+        <span key="half" className="text-yellow-500 text-sm">
+          ★
         </span>
       );
     }
@@ -151,12 +149,29 @@ const Men = () => {
       );
     }
     return stars;
-  };
+  }, []);
 
-  if (loading)
-    return <div className="text-center mt-10 text-xl">Loading...</div>;
-  if (error)
-    return <div className="text-center mt-10 text-red-500">{error}</div>;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64 mt-20">
+        <div className="text-center text-xl">Loading products...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center mt-20 text-red-500">
+        <p>{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 bg-black text-white px-4 py-2 rounded"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-8 mt-20 max-w-screen-xl mx-auto">
@@ -176,7 +191,7 @@ const Men = () => {
             );
           }}
           value={subCategoryFilter}
-          className="border py-1 px-4 rounded-md shadow-sm"
+          className="border py-2 px-4 rounded-md shadow-sm"
         >
           <option value="">All Subcategories</option>
           {subCategories.map((sub) => (
@@ -190,7 +205,7 @@ const Men = () => {
         <select
           onChange={(e) => setSortOrder(e.target.value)}
           value={sortOrder}
-          className="border py-1 px-4 rounded-md shadow-sm"
+          className="border py-2 px-4 rounded-md shadow-sm"
         >
           <option value="">Sort By</option>
           <option value="lowToHigh">Price: Low to High</option>
@@ -201,7 +216,9 @@ const Men = () => {
       {/* Product Grid */}
       {displayed.length === 0 ? (
         <div className="text-center text-gray-500 mt-10">
-          No products found.
+          {products.length === 0
+            ? "No products available."
+            : "No products found matching your filters."}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:ml-20 md:mr-20 place-items-center">
@@ -215,29 +232,44 @@ const Men = () => {
             return (
               <div
                 key={product._id}
-                className="border rounded-xl shadow-md p-4 w-[260px] cursor-pointer relative hover:shadow-lg transition"
+                className="border rounded-xl shadow-md p-4 w-[260px] cursor-pointer relative hover:shadow-lg transition group"
                 onClick={() => navigate(`/product/${product._id}`)}
               >
-                <img
-                  src={`http://localhost:8080/uploads/${product.image}`}
-                  alt={product.title}
-                  className="w-full h-[200px] object-cover rounded-md mb-3 transition-transform hover:scale-105"
-                />
+                <div className="relative overflow-hidden rounded-md mb-3">
+                  <img
+                    src={
+                      product.image?.startsWith("http")
+                        ? product.image
+                        : `${import.meta.env.VITE_API_URL}/uploads/${
+                            product.image
+                          }`
+                    }
+                    alt={product.title}
+                    className="w-full h-[200px] object-cover transition-transform group-hover:scale-105"
+                    onError={(e) => {
+                      e.target.src = "/images/placeholder.png";
+                    }}
+                  />
+                </div>
 
                 {/* Wishlist Button */}
                 <button
                   onClick={(e) => {
-                    e.stopPropagation(); // ✅ navigation ko rok lega
+                    e.stopPropagation();
                     toggleWishlist(product);
                   }}
-                  className="absolute top-2 right-2 text-xl"
+                  className="absolute top-3 right-3 text-xl bg-white p-1 rounded-full shadow-md hover:scale-110 transition"
+                  aria-label={
+                    isInWishlist ? "Remove from wishlist" : "Add to wishlist"
+                  }
                 >
                   {isInWishlist ? (
                     <FaHeart className="text-red-500" />
                   ) : (
-                    <FaRegHeart className="text-gray-500" />
+                    <FaRegHeart className="text-gray-500 hover:text-red-400" />
                   )}
                 </button>
+
                 <h3 className="text-md font-semibold line-clamp-1">
                   {product.title}
                 </h3>
@@ -256,6 +288,12 @@ const Men = () => {
                       <span className="line-through text-gray-500 font-bold">
                         ${product.price}
                       </span>
+                      <span className="text-sm text-green-600 font-medium ml-2">
+                        {Math.round(
+                          (1 - product.discount / product.price) * 100
+                        )}
+                        % off
+                      </span>
                     </>
                   ) : (
                     <span className="font-bold">${product.price}</span>
@@ -268,21 +306,23 @@ const Men = () => {
       )}
 
       {/* Pagination */}
-      <div className="flex justify-center mt-10 gap-2 flex-wrap">
-        {Array.from({ length: totalPages }, (_, idx) => (
-          <button
-            key={idx}
-            onClick={() => setCurrentPage(idx + 1)}
-            className={`px-3 py-1 rounded-sm border ${
-              currentPage === idx + 1
-                ? "bg-black text-white"
-                : "bg-white text-black border-gray-400"
-            } transition`}
-          >
-            {idx + 1}
-          </button>
-        ))}
-      </div>
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-10 gap-2 flex-wrap">
+          {Array.from({ length: totalPages }, (_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrentPage(idx + 1)}
+              className={`px-3 py-2 rounded-sm border ${
+                currentPage === idx + 1
+                  ? "bg-black text-white"
+                  : "bg-white text-black border-gray-400 hover:bg-gray-100"
+              } transition`}
+            >
+              {idx + 1}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,53 +1,89 @@
-import axios from "axios";
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { Eye, EyeOff, FolderPen, Mail, Lock } from "lucide-react";
+import { Eye, EyeOff, FolderPen, Mail, Lock, User } from "lucide-react";
 import { motion } from "framer-motion";
+import api from "../../../api/axios";
 
-
-const Login = () => {
+const Signup = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
-    role: 0, //
+    role: 0,
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = "Name is required";
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "Email is invalid";
+    }
+
+    if (!formData.password) {
+      newErrors.password = "Password is required";
+    } else if (formData.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters";
+    }
+
+    if (!acceptedTerms) {
+      newErrors.terms = "You must accept the terms and conditions";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: "" });
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const res = await axios.post(
-        "http://localhost:8080/user/auth/register",
-        formData
-      );
 
-      // ✅ Console full response data
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.post("/user/auth/register", formData);
       console.log("Signup Success ✅:", res.data);
 
       const { accessToken, refreshToken } = res.data;
-
       localStorage.setItem("accessToken", accessToken);
       localStorage.setItem("refreshToken", refreshToken);
 
-      toast.success("Registration Successffully");
-
+      toast.success("Registration Successful");
       navigate("/login");
     } catch (error) {
       toast.error(error.response?.data?.message || "Registration failed");
       console.error("Registration error:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[calc(100vh-22rem)] mt-6 flex items-center justify-center px-6 sm:px-6 lg:px-8">
-      <div className="bg-white border border-gray-300 py-3 px-3 mt-10 sm:mt-12 md:w-80  md:px-5 sm:px-7 rounded-xl shadow-xl w-full max-w-md">
+    <div className="min-h-[calc(100vh-22rem)] mt-10 flex items-center justify-center px-6 sm:px-6 lg:px-8">
+      <div className="bg-white border border-gray-300 py-3 px-3 mt-10 sm:mt-12 md:w-96 md:px-5 sm:px-7 rounded-xl shadow-xl w-full max-w-md">
         <h2 className="text-2xl font-bold font-sans text-gray-800 mb-1">
           Sign Up
         </h2>
@@ -71,9 +107,14 @@ const Login = () => {
                 placeholder="Enter your name"
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full pl-7 pr-3 py-2 text-sm border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
+                className={`w-full pl-7 pr-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-black ${
+                  errors.name ? "border-red-500" : "border-gray-400"
+                }`}
               />
             </div>
+            {errors.name && (
+              <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+            )}
           </div>
 
           {/* Email */}
@@ -91,10 +132,14 @@ const Login = () => {
                 placeholder="Enter your email"
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full pl-7 pr-3 py-2 text-sm border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
-                required
+                className={`w-full pl-7 pr-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-black ${
+                  errors.email ? "border-red-500" : "border-gray-400"
+                }`}
               />
             </div>
+            {errors.email && (
+              <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+            )}
           </div>
 
           {/* Password */}
@@ -112,8 +157,9 @@ const Login = () => {
                 placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleChange}
-                className="w-full pl-7 pr-10 py-2 text-sm border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
-                required
+                className={`w-full pl-7 pr-10 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-black ${
+                  errors.password ? "border-red-500" : "border-gray-400"
+                }`}
               />
               <span
                 onClick={() => setShowPassword(!showPassword)}
@@ -122,14 +168,19 @@ const Login = () => {
                 {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
               </span>
             </div>
+            {errors.password && (
+              <p className="text-red-500 text-xs mt-1">{errors.password}</p>
+            )}
           </div>
 
           {/* Terms */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-start space-x-2">
             <input
               type="checkbox"
               id="terms"
-              className="w-3 h-3 text-black focus:ring-black border-gray-300 rounded cursor-pointer"
+              checked={acceptedTerms}
+              onChange={(e) => setAcceptedTerms(e.target.checked)}
+              className="w-3 h-3 text-black focus:ring-black border-gray-300 rounded cursor-pointer mt-1"
             />
             <label htmlFor="terms" className="text-xs text-gray-500">
               I agree with the
@@ -138,23 +189,27 @@ const Login = () => {
               </span>
             </label>
           </div>
+          {errors.terms && (
+            <p className="text-red-500 text-xs mt-1">{errors.terms}</p>
+          )}
 
           {/* Submit Button */}
           <motion.button
             type="submit"
-            className="w-full font-semibold bg-black text-white py-2 rounded-md hover:bg-gray-800 transition duration-200 text-sm"
-            whileHover={{ scale: 1.1}}
-            whileTap={{ scale: 0.9}}
+            disabled={loading}
+            className="w-full font-semibold bg-black text-white py-2 rounded-md hover:bg-gray-800 transition duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
-            Sign Up
+            {loading ? "Signing Up..." : "Sign Up"}
           </motion.button>
         </form>
 
-        <p className="text-[13px] font-sans text-center text-gray-600 mt-3">
+        <p className="text-[14px] font-sans text-center text-gray-600 mt-3">
           Already have an account?
           <Link
             to="/login"
-            className="text-black text-xs ml-1 font-bold hover:underline font-sans"
+            className="text-black text-[14px] ml-1 font-bold hover:underline font-sans"
           >
             Login
           </Link>
@@ -164,4 +219,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Signup;
