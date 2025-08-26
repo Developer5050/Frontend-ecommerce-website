@@ -222,26 +222,29 @@ const Kid = () => {
             return (
               <div
                 key={product._id}
-                className="border rounded-lg shadow p-4 w-full max-w-[260px] relative cursor-pointer"
+                className="border rounded-lg shadow p-4 w-full max-w-[260px] relative cursor-pointer hover:shadow-lg transition"
                 onClick={() => navigate(`/product/${product._id}`)}
               >
-                <img
-                  src={
-                    product.image?.startsWith("http")
-                      ? product.image
-                      : `${import.meta.env.VITE_API_URL}/uploads/${
-                          product.image
-                        }`
-                  }
-                  alt={product.title}
-                  onError={(e) => (e.target.src = "/images/placeholder.png")}
-                  className="w-full h-[200px] object-cover rounded-lg mb-3 transition-transform hover:scale-105"
-                />
+                {/* ✅ Fixed Aspect Ratio for Image */}
+                <div className="relative overflow-hidden rounded-lg mb-3 w-full apsect-[4/3]">
+                  <img
+                    src={
+                      product.image?.startsWith("http")
+                        ? product.image
+                        : `${import.meta.env.VITE_API_URL}/uploads/${
+                            product.image
+                          }`
+                    }
+                    alt={product.title}
+                    onError={(e) => (e.target.src = "/images/placeholder.png")}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                </div>
 
                 {/* Wishlist Heart */}
                 <button
                   onClick={(e) => {
-                    e.stopPropagation(); // ✅ navigation ko rok lega
+                    e.stopPropagation();
                     toggleWishlist(product);
                   }}
                   className="absolute top-3 right-3 text-xl bg-white p-1 rounded-full shadow-md hover:scale-110 transition"
@@ -298,8 +301,8 @@ const Kid = () => {
             onClick={() => setCurrentPage(idx + 1)}
             className={`px-3 py-1 rounded-sm border transition ${
               currentPage === idx + 1
-                ? "bg-black text-white"
-                : "bg-white text-black"
+                ? "bg-black text-white border-black"
+                : "bg-white text-black border-gray-400 hover:bg-gray-100"
             }`}
           >
             {idx + 1}

@@ -235,7 +235,8 @@ const Men = () => {
                 className="border rounded-xl shadow-md p-4 w-[260px] cursor-pointer relative hover:shadow-lg transition group"
                 onClick={() => navigate(`/product/${product._id}`)}
               >
-                <div className="relative overflow-hidden rounded-md mb-3">
+                {/* Fixed Aspect Ratio for Image */}
+                <div className="relative overflow-hidden rounded-md mb-3 w-full aspect-[3/4]">
                   <img
                     src={
                       product.image?.startsWith("http")
@@ -245,7 +246,7 @@ const Men = () => {
                           }`
                     }
                     alt={product.title}
-                    className="w-full h-[200px] object-cover transition-transform group-hover:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                     onError={(e) => {
                       e.target.src = "/images/placeholder.png";
                     }}
@@ -270,15 +271,20 @@ const Men = () => {
                   )}
                 </button>
 
+                {/* Product Info */}
                 <h3 className="text-md font-semibold line-clamp-1">
                   {product.title}
                 </h3>
+
+                {/* Rating */}
                 <div className="flex items-center gap-1 mt-1">
                   {renderStars(product.rating || 4)}
                   <span className="text-xs text-gray-600">
                     ({product.rating || 4})
                   </span>
                 </div>
+
+                {/* Price */}
                 <div className="mt-1 text-sm sm:text-lg">
                   {product.discount ? (
                     <>
@@ -314,7 +320,7 @@ const Men = () => {
               onClick={() => setCurrentPage(idx + 1)}
               className={`px-3 py-2 rounded-sm border ${
                 currentPage === idx + 1
-                  ? "bg-black text-white"
+                  ? "bg-black text-white border-black"
                   : "bg-white text-black border-gray-400 hover:bg-gray-100"
               } transition`}
             >

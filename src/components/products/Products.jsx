@@ -167,6 +167,7 @@ const Products = () => {
         </div>
       ) : (
         <>
+          {/* Product Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {displayProducts.map((item) => {
               const productId = item._id.toString();
@@ -178,16 +179,21 @@ const Products = () => {
                   key={productId}
                   className="border rounded-lg p-4 shadow-md bg-white flex flex-col relative hover:shadow-lg transition-shadow duration-300"
                 >
+                  {/* Image Section */}
                   <div className="relative">
-                    <img
-                      src={`${import.meta.env.VITE_API_URL}/uploads/${
-                        item.image
-                      }`}
-                      alt={item.title}
-                      onClick={() => navigate(`/product/${productId}`)}
-                      className="w-full h-48 object-cover rounded-md cursor-pointer hover:opacity-90 transition-opacity duration-200"
-                      loading="lazy"
-                    />
+                    <div className="w-full aspect-[3/4] overflow-hidden rounded-md">
+                      <img
+                        src={`${import.meta.env.VITE_API_URL}/uploads/${
+                          item.image
+                        }`}
+                        alt={item.title}
+                        onClick={() => navigate(`/product/${productId}`)}
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity duration-200"
+                        loading="lazy"
+                      />
+                    </div>
+
+                    {/* Wishlist Button */}
                     <button
                       onClick={() => !isLoading && toggleWishlist(item)}
                       disabled={isLoading}
@@ -208,10 +214,12 @@ const Products = () => {
                     </button>
                   </div>
 
+                  {/* Title */}
                   <h3 className="text-lg font-semibold mt-3 truncate">
                     {item.title}
                   </h3>
 
+                  {/* Rating */}
                   <div className="flex items-center gap-1 mt-2">
                     {renderStars(item.rating || 4)}
                     <span className="text-sm text-gray-600 ml-1">
@@ -219,6 +227,7 @@ const Products = () => {
                     </span>
                   </div>
 
+                  {/* Price Section */}
                   <div className="mt-2">
                     {item.discount ? (
                       <div className="flex items-center gap-2">
@@ -244,6 +253,7 @@ const Products = () => {
             })}
           </div>
 
+          {/* View All / View Less Button */}
           {products.length > 4 && (
             <div className="text-center mt-8">
               <button

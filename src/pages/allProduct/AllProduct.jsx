@@ -209,8 +209,9 @@ const AllProduct = ({ searchQuery }) => {
                   key={product._id}
                   className="border p-4 rounded-lg bg-white shadow-sm hover:shadow-md transition duration-300 relative"
                 >
+                  {/* Image Wrapper with Aspect Ratio */}
                   <div
-                    className="w-full h-[200px] flex justify-center items-center overflow-hidden rounded-md mb-3 cursor-pointer group"
+                    className="w-full aspect-[3/4] overflow-hidden rounded-md mb-3 cursor-pointer group"
                     onClick={() => navigate(`/product/${product._id}`)}
                   >
                     <img
@@ -225,7 +226,7 @@ const AllProduct = ({ searchQuery }) => {
                       onError={(e) =>
                         (e.target.src = "/images/placeholder.png")
                       }
-                      className="object-cover w-full h-full"
+                      className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
                     />
                   </div>
 
@@ -241,10 +242,12 @@ const AllProduct = ({ searchQuery }) => {
                     )}
                   </button>
 
+                  {/* Title */}
                   <h2 className="text-md font-semibold font-ubuntu mb-1 line-clamp-1 text-gray-800">
                     {product.title}
                   </h2>
 
+                  {/* Rating */}
                   <div className="flex items-center gap-1 mb-2">
                     {renderStars(product.rating || 4)}
                     <span className="text-xs sm:text-sm text-gray-600">
@@ -252,6 +255,7 @@ const AllProduct = ({ searchQuery }) => {
                     </span>
                   </div>
 
+                  {/* Price */}
                   <div className="mt-1 text-sm sm:text-lg">
                     {product.discount ? (
                       <>
@@ -281,8 +285,8 @@ const AllProduct = ({ searchQuery }) => {
           <div className="flex justify-center mt-10 gap-1 py-4 flex-wrap">
             <button
               className="px-3 py-2 border border-gray-400 rounded-sm font-ubuntu text-xs sm:text-sm transition 
-      hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-1 
-      disabled:opacity-50 disabled:cursor-not-allowed"
+            hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-1 
+            disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={currentPage === 1}
               onClick={() => setCurrentPage(currentPage - 1)}
             >
@@ -294,12 +298,12 @@ const AllProduct = ({ searchQuery }) => {
                 key={i}
                 onClick={() => setCurrentPage(i + 1)}
                 className={`px-4 py-2 border rounded-sm text-xs sm:text-sm transition 
-        focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-1
-        ${
-          currentPage === i + 1
-            ? "bg-black text-white border-black"
-            : "bg-white text-gray-800 border-gray-400 hover:border-black hover:bg-gray-100"
-        }`}
+              focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-1
+              ${
+                currentPage === i + 1
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-800 border-gray-400 hover:border-black hover:bg-gray-100"
+              }`}
               >
                 {i + 1}
               </button>
@@ -307,8 +311,8 @@ const AllProduct = ({ searchQuery }) => {
 
             <button
               className="px-3 py-2 border border-gray-400 rounded-sm font-ubuntu text-xs sm:text-sm transition 
-      hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-1 
-      disabled:opacity-50 disabled:cursor-not-allowed"
+            hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-1 
+            disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage(currentPage + 1)}
             >

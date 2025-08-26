@@ -50,12 +50,6 @@ const OrderConfirmed = () => {
           Continue Shopping
         </button>
         
-        <button
-          onClick={() => navigate("/orders")}
-          className="border border-black text-black px-5 py-2 text-sm sm:text-base rounded-sm font-ubuntu hover:bg-gray-100 transition"
-        >
-          View Orders
-        </button>
       </div>
     </div>
   );

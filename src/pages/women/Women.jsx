@@ -266,7 +266,8 @@ const Women = () => {
                 className="border rounded-lg shadow p-4 w-full max-w-[260px] relative group cursor-pointer hover:shadow-lg transition"
                 onClick={() => navigate(`/product/${product._id}`)}
               >
-                <div className="relative overflow-hidden rounded-lg mb-3">
+                {/* Fixed Aspect Ratio for Image */}
+                <div className="relative overflow-hidden rounded-lg mb-3 w-full aspect-[3/4]">
                   <img
                     src={
                       product.image?.startsWith("http")
@@ -276,7 +277,7 @@ const Women = () => {
                           }`
                     }
                     alt={product.title}
-                    className="w-full h-[200px] object-cover transition-transform group-hover:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                     onError={(e) => {
                       e.target.src = "/images/placeholder.png";
                     }}
@@ -301,6 +302,7 @@ const Women = () => {
                   )}
                 </button>
 
+                {/* Product Info */}
                 <h3 className="text-md font-semibold font-ubuntu line-clamp-1">
                   {product.title}
                 </h3>
@@ -347,7 +349,7 @@ const Women = () => {
               onClick={() => setCurrentPage(idx + 1)}
               className={`px-3 py-2 rounded border ${
                 currentPage === idx + 1
-                  ? "bg-black text-white"
+                  ? "bg-black text-white border-black"
                   : "bg-white text-black border-gray-400 hover:bg-gray-100"
               } transition`}
             >
